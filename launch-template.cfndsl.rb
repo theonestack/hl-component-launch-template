@@ -2,11 +2,11 @@ CloudFormation do
   
   Condition('KeyNameSet', FnNot(FnEquals(Ref('KeyName'), '')))
 
-  fleet_tags = []
-  fleet_tags.push({ Key: 'Name', Value: FnSub("${EnvironmentName}-#{component_name}") })
-  fleet_tags.push({ Key: 'EnvironmentName', Value: Ref(:EnvironmentName) })
-  fleet_tags.push({ Key: 'EnvironmentType', Value: Ref(:EnvironmentType) })
-  fleet_tags.push(*tags.map {|k,v| {Key: k, Value: FnSub(v)}}).uniq { |h| h[:Key] } if defined? tags
+  template_tags = []
+  template_tags.push({ Key: 'Name', Value: FnSub("${EnvironmentName}-#{component_name}") })
+  template_tags.push({ Key: 'EnvironmentName', Value: Ref(:EnvironmentName) })
+  template_tags.push({ Key: 'EnvironmentType', Value: Ref(:EnvironmentType) })
+  template_tags.push(*tags.map {|k,v| {Key: k, Value: FnSub(v)}}).uniq { |h| h[:Key] } if defined? tags
 
   EC2_SecurityGroup(:SecurityGroupFleet) do
     VpcId Ref('VPCId')
@@ -18,7 +18,7 @@ CloudFormation do
         IpProtocol: -1,
       }
     ])
-    Tags fleet_tags
+    Tags template_tags
   end
   
   security_groups.each do |sg|
@@ -49,10 +49,12 @@ CloudFormation do
     Path '/'
     Roles [Ref('Role')]
   end
-
+  
+  fleet_tags = template_tags.clone
   fleet_tags.push({ Key: 'Name', Value: FnSub("${EnvironmentName}-fleet-xx") })
   fleet_tags.push(*instance_tags.map {|k,v| {Key: k, Value: FnSub(v)}}) if defined? instance_tags
-
+  fleet_tags = fleet_tags.reverse.uniq { |h| h[:Key] }
+  
   # Setup userdata string
   instance_userdata = "#!/bin/bash\nset -o xtrace\n"
   instance_userdata << userdata if defined? userdata
@@ -64,7 +66,7 @@ CloudFormation do
       TagSpecifications: [
         { ResourceType: 'instance', Tags: fleet_tags },
         { ResourceType: 'volume', Tags: fleet_tags },
-        { ResourceType: 'launch-template', Tags: fleet_tags }
+        { ResourceType: 'launch-template', Tags: template_tags }
       ],
       UserData: FnBase64(FnSub(instance_userdata)),
       IamInstanceProfile: { Name: Ref(:InstanceProfile) },
