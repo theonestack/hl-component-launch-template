@@ -81,6 +81,7 @@ CloudFormation do
 
   EC2_LaunchTemplate(:LaunchTemplate) {
     LaunchTemplateData(template_data)
+    LaunchTemplateName FnSub(name) if defined? name
   }
   
 end
